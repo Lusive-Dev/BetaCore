@@ -16,45 +16,105 @@ jobs:
   build:
     name: Build debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
-      - name: Checkout repository
+      - name: Check out repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up Java 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Locate Android Gradle project
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.3.1'
+
+      - name: Extract AI Studio project ZIP
         id: project
         shell: bash
         run: |
           set -euo pipefail
-          wrapper="$(find . -maxdepth 6 -type f -name gradlew -not -path './.git/*' -print -quit)"
-          if [ -z "$wrapper" ]; then
-            echo "::error::No Gradle wrapper (gradlew) found. Upload/extract the Android Studio project, including gradlew and gradle/wrapper files, then push again."
+          mkdir -p extracted
+          ZIP_FILE=""
+          if [ -f "aistudio-project.zip" ]; then
+            ZIP_FILE="aistudio-project.zip"
+          else
+            ZIP_FILE="$(find . -maxdepth 2 -type f -name '*.zip' ! -name 'TEST.zip' ! -path './.git/*' -print -quit)"
+          fi
+          if [ -z "$ZIP_FILE" ]; then
+            echo "::error::No AI Studio project ZIP found. Add aistudio-project.zip to the repository root."
             exit 1
           fi
-          project_dir="$(dirname "$wrapper")"
-          echo "dir=$project_dir" >> "$GITHUB_OUTPUT"
-          chmod +x "$wrapper"
-          echo "Using Android project at: $project_dir"
+          echo "Extracting: $ZIP_FILE"
+          unzip -t "$ZIP_FILE"
+          unzip -q "$ZIP_FILE" -d extracted
+          SETTINGS_FILE="$(find extracted -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)"
+          if [ -n "$SETTINGS_FILE" ]; then
+            PROJECT_DIR="$(dirname "$SETTINGS_FILE")"
+          else
+            BUILD_FILE="$(find extracted -type f \( -name build.gradle -o -name build.gradle.kts \) -print -quit)"
+            if [ -z "$BUILD_FILE" ]; then
+              echo "::error::No Gradle settings/build file found in the ZIP."
+              find extracted -maxdepth 4 -type f | head -200
+              exit 1
+            fi
+            PROJECT_DIR="$(dirname "$BUILD_FILE")"
+          fi
+          echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+          echo "Project directory: $PROJECT_DIR"
+          find "$PROJECT_DIR" -maxdepth 3 -type f | head -200
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
+      - name: Create missing debug keystore
+        shell: bash
+        env:
+          PROJECT_DIR: ${{ steps.project.outputs.dir }}
+        run: |
+          set -euo pipefail
+          KEYSTORE="$PROJECT_DIR/debug.keystore"
+          if [ ! -f "$KEYSTORE" ]; then
+            echo "Expected debug keystore is missing; generating a CI-only debug keystore."
+            keytool -genkeypair -v \
+              -keystore "$KEYSTORE" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000
+          else
+            echo "Debug keystore already exists."
+          fi
 
       - name: Build debug APK
-        working-directory: ${{ steps.project.outputs.dir }}
-        run: ./gradlew --no-daemon assembleDebug
+        shell: bash
+        env:
+          PROJECT_DIR: ${{ steps.project.outputs.dir }}
+        run: |
+          set -euo pipefail
+          echo "Building project at: $PROJECT_DIR"
+          if [ -f "$PROJECT_DIR/gradlew" ]; then
+            chmod +x "$PROJECT_DIR/gradlew"
+            "$PROJECT_DIR/gradlew" --no-daemon assembleDebug --stacktrace
+          else
+            gradle -p "$PROJECT_DIR" --no-daemon assembleDebug --stacktrace
+          fi
 
       - name: Upload APK artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: BetaCore-debug-apk
-          path: |
-            ${{ steps.project.outputs.dir }}/**/build/outputs/apk/**/*.apk
-          if-no-files-found: error
+          path: extracted/**/build/outputs/apk/**/*.apk
+          if-no-files-found: warn
           retention-days: 14
