@@ -10,7 +10,9 @@ namespace nexium::runtime {
 inline constexpr std::uint32_t abi_major = 0;
 inline constexpr std::uint32_t abi_minor = 2;
 
-enum class ErrorCode : std::uint32_t { none=0, invalid_argument, out_of_memory, out_of_range, io_failure, invalid_state, end_of_file };
+enum class ErrorCode : std::uint32_t { none=0, invalid_argument, out_of_memory, out_of_range, io_failure, invalid_state, end_of_file, timeout, not_found, permission_denied, network_failure, process_failure, unsupported, unknown };
+Error last_error() noexcept;
+void clear_error() noexcept;
 struct Error {
     ErrorCode code{ErrorCode::none};
     const char* message{"ok"};
@@ -39,6 +41,26 @@ bool file_flush(File& file) noexcept;
 bool file_close(File& file) noexcept;
 bool file_exists(const char* path) noexcept;
 bool file_remove(const char* path) noexcept;
+bool directory_create(const char* path) noexcept;
+bool directory_exists(const char* path) noexcept;
+bool file_copy(const char* source, const char* destination, bool overwrite) noexcept;
+bool file_move(const char* source, const char* destination, bool overwrite) noexcept;
+bool file_size(const char* path, std::uint64_t* size) noexcept;
+
+struct Process { void* handle{nullptr}; std::uint32_t id{0}; };
+bool process_start(Process& process, const char* executable, const char* const* arguments, std::size_t argument_count) noexcept;
+bool process_wait(Process& process, std::uint64_t timeout_ms, std::int32_t* exit_code) noexcept;
+bool process_terminate(Process& process, std::uint32_t exit_code) noexcept;
+void process_close(Process& process) noexcept;
+
+struct Socket { std::intptr_t handle{-1}; };
+bool network_initialize() noexcept;
+void network_shutdown() noexcept;
+bool tcp_connect(Socket& socket, const char* host, std::uint16_t port, std::uint64_t timeout_ms) noexcept;
+std::int64_t tcp_send(Socket& socket, const void* data, std::size_t size) noexcept;
+std::int64_t tcp_receive(Socket& socket, void* data, std::size_t capacity) noexcept;
+void tcp_close(Socket& socket) noexcept;
+bool secure_random(void* destination, std::size_t size) noexcept;
 
 std::uint64_t monotonic_time_ns() noexcept;
 void sleep_ms(std::uint64_t milliseconds) noexcept;
