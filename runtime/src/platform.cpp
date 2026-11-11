@@ -45,6 +45,7 @@ constexpr NativeSocket invalid_socket=-1;
 struct SocketImpl { NativeSocket value{invalid_socket}; };
 }
 Error last_error() noexcept { return tls_error; }
+void set_last_error(ErrorCode code,const char* message) noexcept { tls_error={code,message}; }
 void clear_error() noexcept { tls_error={}; }
 
 bool directory_create(const char* path) noexcept {
