@@ -30,14 +30,14 @@ void shutdown() noexcept { initialized.store(false); }
 bool is_initialized() noexcept { return initialized.load(); }
 
 void* allocate(std::size_t size,std::size_t alignment) noexcept {
-    if(!valid_alignment(alignment)) return nullptr;
+    if(!valid_alignment(alignment)) { set_last_error(ErrorCode::invalid_argument,"alignment must be a nonzero power of two"); return nullptr; }
     if(size==0) size=1;
     const std::size_t effective=alignment<alignof(void*)?alignof(void*):alignment;
     const auto max=std::numeric_limits<std::size_t>::max();
     if(effective>max-sizeof(AllocationHeader) || size>max-effective-sizeof(AllocationHeader)) return nullptr;
     const std::size_t total=size+effective-1+sizeof(AllocationHeader);
     void* base=std::malloc(total);
-    if(!base) return nullptr;
+    if(!base) { set_last_error(ErrorCode::out_of_memory,"allocation failed"); return nullptr; }
     const auto start=reinterpret_cast<std::uintptr_t>(base)+sizeof(AllocationHeader);
     const auto aligned=(start+effective-1)&~(static_cast<std::uintptr_t>(effective)-1);
     auto* header=reinterpret_cast<AllocationHeader*>(aligned-sizeof(AllocationHeader));
@@ -133,11 +133,12 @@ bool utf8_encode(std::uint32_t cp,char output[4],std::size_t* written) noexcept 
 }
 
 bool file_open(File& file,const char* path,FileMode mode) noexcept {
-    if(file.handle || !path || !*path) return false;
+    if(file.handle || !path || !*path) { set_last_error(ErrorCode::invalid_argument,"invalid file open arguments"); return false; }
     const char* m=mode_string(mode);
-    if(!m) return false;
+    if(!m) { set_last_error(ErrorCode::invalid_argument,"invalid file mode"); return false; }
     file.handle=std::fopen(path,m);
-    return file.handle!=nullptr;
+    if(!file.handle) { set_last_error(ErrorCode::io_failure,"file open failed"); return false; }
+    clear_error(); return true;
 }
 std::size_t file_read(File& file,void* dst,std::size_t bytes) noexcept {
     if(!file.handle || (!dst && bytes)) return 0;
@@ -147,12 +148,12 @@ std::size_t file_write(File& file,const void* src,std::size_t bytes) noexcept {
     if(!file.handle || (!src && bytes)) return 0;
     return std::fwrite(src,1,bytes,static_cast<std::FILE*>(file.handle));
 }
-bool file_flush(File& file) noexcept { return file.handle && std::fflush(static_cast<std::FILE*>(file.handle))==0; }
+bool file_flush(File& file) noexcept { if(!file.handle) { set_last_error(ErrorCode::invalid_state,"file is not open"); return false; } if(std::fflush(static_cast<std::FILE*>(file.handle))!=0) { set_last_error(ErrorCode::io_failure,"file flush failed"); return false; } clear_error(); return true; }
 bool file_close(File& file) noexcept {
     if(!file.handle) return true;
     auto* stream=static_cast<std::FILE*>(file.handle);
     file.handle=nullptr;
-    return std::fclose(stream)==0;
+    const bool ok=std::fclose(stream)==0; if(!ok) set_last_error(ErrorCode::io_failure,"file close failed"); else clear_error(); return ok;
 }
 bool file_exists(const char* path) noexcept {
     if(!path || !*path) return false;
