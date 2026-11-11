@@ -184,7 +184,7 @@ int main() {
     {
 #ifdef _WIN32
         const char* executable="cmd.exe";
-        const char* args[]={"/c","exit 7"};
+        const char* args[]={"/c","exit /b 7"};
 #else
         const char* executable="/bin/sh";
         const char* args[]={"-c","exit 7"};
