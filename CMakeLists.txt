@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(NexiumRuntime VERSION 0.1.0 LANGUAGES CXX)
+project(NexiumRuntime VERSION 0.3.0 LANGUAGES CXX)
 option(NEXIUM_RUNTIME_BUILD_TESTS "Build runtime tests" ON)
 find_package(Threads REQUIRED)
 add_library(nexium_runtime STATIC runtime/src/runtime.cpp runtime/src/platform.cpp)
