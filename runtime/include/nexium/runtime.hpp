@@ -179,10 +179,10 @@ private:
 // Stable C-facing bootstrap ABI. Handles are opaque to Nexium programs.
 extern "C" {
 struct NexiumRuntimeFile { void* handle; };
-struct NexiumRuntimeProcess { void* handle; std::uint32_t id; };
-struct NexiumRuntimeSocket { std::intptr_t handle; };
-struct NexiumRuntimeTaskPool { void* handle; };
-struct NexiumRuntimeTask { void* handle; };
+struct NexiumRuntimeProcess { void* handle{nullptr}; std::uint32_t id{0}; };
+struct NexiumRuntimeSocket { std::intptr_t handle{-1}; };
+struct NexiumRuntimeTaskPool { void* handle{nullptr}; };
+struct NexiumRuntimeTask { void* handle{nullptr}; };
 using NexiumRuntimeTaskFunction = void(*)(void*);
 
 std::uint32_t nexium_rt_abi_version() noexcept;
