@@ -42,6 +42,16 @@ bool file_remove(const char* path) noexcept;
 
 std::uint64_t monotonic_time_ns() noexcept;
 void sleep_ms(std::uint64_t milliseconds) noexcept;
+using ThreadFunction = void(*)(void*);
+struct Thread { void* handle{nullptr}; };
+bool thread_start(Thread& thread, ThreadFunction function, void* user_data) noexcept;
+bool thread_join(Thread& thread) noexcept;
+bool thread_detach(Thread& thread) noexcept;
+struct Mutex { void* handle{nullptr}; };
+bool mutex_initialize(Mutex& mutex) noexcept;
+void mutex_destroy(Mutex& mutex) noexcept;
+bool mutex_lock(Mutex& mutex) noexcept;
+bool mutex_unlock(Mutex& mutex) noexcept;
 bool environment_get(const char* name, char* destination, std::size_t capacity, std::size_t* required) noexcept;
 
 class String {
