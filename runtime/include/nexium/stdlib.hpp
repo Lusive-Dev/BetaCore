@@ -20,6 +20,8 @@
 
 namespace nexium::stdlib {
 
+using runtime::Array;
+
 // Hosted bootstrap containers. The public Nexium API will remain independent of
 // the host STL ABI; these templates are compiled into the caller.
 template<class K, class V, class Hash=std::hash<K>, class Equal=std::equal_to<K>>
@@ -83,17 +85,20 @@ private:
 
 template<class T, class Compare=std::less<T>>
 bool sort(Array<T>& values, Compare compare={}) noexcept {
+    if(values.size()<2) return true;
     try { std::sort(values.data(),values.data()+values.size(),compare); return true; }
     catch(...) { return false; }
 }
 template<class T, class Compare=std::less<T>>
 T* binary_search(Array<T>& values,const T& key,Compare compare={}) noexcept {
+    if(values.empty()) return nullptr;
     T* first=values.data(); T* last=first+values.size();
     T* found=std::lower_bound(first,last,key,compare);
     return found!=last && !compare(key,*found)?found:nullptr;
 }
 template<class T, class Compare=std::less<T>>
 const T* binary_search(const Array<T>& values,const T& key,Compare compare={}) noexcept {
+    if(values.empty()) return nullptr;
     const T* first=values.data(); const T* last=first+values.size();
     const T* found=std::lower_bound(first,last,key,compare);
     return found!=last && !compare(key,*found)?found:nullptr;
