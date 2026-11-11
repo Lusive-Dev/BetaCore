@@ -13,12 +13,11 @@ inline constexpr std::uint32_t abi_minor = 2;
 enum class ErrorCode : std::uint32_t { none=0, invalid_argument, out_of_memory, out_of_range, io_failure, invalid_state, end_of_file, timeout, not_found, permission_denied, network_failure, process_failure, unsupported, unknown };
 struct Error {
     ErrorCode code{ErrorCode::none};
-Error last_error() noexcept;
-void clear_error() noexcept;
-
     const char* message{"ok"};
     explicit operator bool() const noexcept { return code != ErrorCode::none; }
 };
+Error last_error() noexcept;
+void clear_error() noexcept;
 struct MemoryStats { std::uint64_t live_bytes; std::uint64_t peak_bytes; std::uint64_t live_allocations; };
 
 bool initialize() noexcept;
