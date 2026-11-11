@@ -2,14 +2,14 @@
 
 Nexium is an original programming-language and developer-tools project.
 
-## Runtime: expanded hosted platform layer (ABI 0.2; not frozen)
+## Runtime: expanded hosted platform layer (ABI 0.3; not frozen)
 
 The repository now contains a usable host runtime foundation for the compiler to target. This is a completed **bootstrap-runtime milestone**, not a finished Nexium 1.0 language distribution.
 
 ### Implemented runtime surface
 
 - Aligned allocation/deallocation with live-byte, peak-byte, and allocation counters.
-- Owning byte strings with copy/move operations and UTF-8 validation.
+- Owning byte strings with copy/move operations, UTF-8 validation, and strict Unicode scalar encode/decode.
 - Dynamically-sized arrays with overflow checks and safe growth when insertion arguments alias existing elements.
 - Console output and fatal panic reporting.
 - Binary file open/read/write/flush/close, existence checks, and removal.
