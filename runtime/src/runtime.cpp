@@ -8,6 +8,10 @@
 #include <thread>
 #include <mutex>
 #include <new>
+#ifdef _WIN32
+# define NOMINMAX
+# include <windows.h>
+#endif
 
 namespace nexium::runtime {
 namespace {
@@ -15,6 +19,23 @@ std::atomic<bool> initialized{false};
 std::atomic<std::uint64_t> live_bytes{0}, peak_bytes{0}, live_allocations{0};
 struct AllocationHeader { void* base; std::size_t size; };
 bool valid_alignment(std::size_t a) noexcept { return a!=0 && (a&(a-1))==0; }
+std::FILE* open_utf8_file(const char* path,const char* mode) noexcept {
+#ifdef _WIN32
+    if(!path || !mode) return nullptr;
+    const int pn=MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,path,-1,nullptr,0);
+    const int mn=MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,mode,-1,nullptr,0);
+    if(pn<=0 || mn<=0) return nullptr;
+    auto* wp=new(std::nothrow) wchar_t[static_cast<std::size_t>(pn)];
+    auto* wm=new(std::nothrow) wchar_t[static_cast<std::size_t>(mn)];
+    if(!wp || !wm) { delete[] wp; delete[] wm; return nullptr; }
+    MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,path,-1,wp,pn);
+    MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,mode,-1,wm,mn);
+    std::FILE* file=_wfopen(wp,wm);
+    delete[] wp; delete[] wm; return file;
+#else
+    return std::fopen(path,mode);
+#endif
+}
 const char* mode_string(FileMode mode) noexcept {
     switch(mode) {
         case FileMode::read: return "rb";
@@ -136,7 +157,7 @@ bool file_open(File& file,const char* path,FileMode mode) noexcept {
     if(file.handle || !path || !*path) { set_last_error(ErrorCode::invalid_argument,"invalid file open arguments"); return false; }
     const char* m=mode_string(mode);
     if(!m) { set_last_error(ErrorCode::invalid_argument,"invalid file mode"); return false; }
-    file.handle=std::fopen(path,m);
+    file.handle=open_utf8_file(path,m);
     if(!file.handle) { set_last_error(ErrorCode::io_failure,"file open failed"); return false; }
     clear_error(); return true;
 }
@@ -157,11 +178,25 @@ bool file_close(File& file) noexcept {
 }
 bool file_exists(const char* path) noexcept {
     if(!path || !*path) return false;
-    std::FILE* f=std::fopen(path,"rb");
+    std::FILE* f=open_utf8_file(path,"rb");
     if(!f) return false;
     std::fclose(f); return true;
 }
-bool file_remove(const char* path) noexcept { return path && std::remove(path)==0; }
+bool file_remove(const char* path) noexcept {
+    if(!path || !*path) { set_last_error(ErrorCode::invalid_argument,"invalid file removal path"); return false; }
+#ifdef _WIN32
+    const int n=MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,path,-1,nullptr,0);
+    if(n<=0) { set_last_error(ErrorCode::invalid_argument,"file path is not valid UTF-8"); return false; }
+    auto* wide=new(std::nothrow) wchar_t[static_cast<std::size_t>(n)];
+    if(!wide) { set_last_error(ErrorCode::out_of_memory,"path conversion allocation failed"); return false; }
+    MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,path,-1,wide,n);
+    const int result=_wremove(wide); delete[] wide;
+#else
+    const int result=std::remove(path);
+#endif
+    if(result!=0) { set_last_error(ErrorCode::io_failure,"file removal failed"); return false; }
+    clear_error(); return true;
+}
 
 std::uint64_t monotonic_time_ns() noexcept {
     const auto value=std::chrono::steady_clock::now().time_since_epoch();
