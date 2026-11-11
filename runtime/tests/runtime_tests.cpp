@@ -40,6 +40,12 @@ int main() {
         assert(std::strcmp(text.c_str(),"Hello, NexiumHello, Nexium")==0);
         const char utf8[]="\xF0\x9F\x8C\xB3";
         assert(valid_utf8(utf8,sizeof(utf8)-1));
+        std::size_t offset=0, written=0; std::uint32_t scalar=0; char encoded[4]{};
+        assert(utf8_decode_next(utf8,sizeof(utf8)-1,&offset,&scalar));
+        assert(scalar==0x1f333 && offset==sizeof(utf8)-1);
+        assert(utf8_encode(scalar,encoded,&written) && written==4);
+        assert(std::memcmp(encoded,utf8,4)==0);
+        assert(!utf8_encode(0xd800,encoded,&written));
         const char invalid[]="\xC0\xAF";
         assert(!valid_utf8(invalid,sizeof(invalid)-1));
         assert(!valid_utf8(nullptr,1));
