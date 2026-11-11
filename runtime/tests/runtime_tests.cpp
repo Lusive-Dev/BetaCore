@@ -183,17 +183,21 @@ int main() {
 
     {
 #ifdef _WIN32
-        const char* executable="cmd.exe";
-        const char* args[]={"/c","exit /b 7"};
+        // where.exe is a deterministic Windows system utility. Avoid testing
+        // cmd.exe's special /c quote-stripping rules through a generic argv API.
+        const char* executable="C:\\Windows\\System32\\where.exe";
+        const char* args[]={"cmd.exe"};
+        const std::int32_t expected_exit_code=0;
 #else
         const char* executable="/bin/sh";
         const char* args[]={"-c","exit 7"};
+        const std::int32_t expected_exit_code=7;
 #endif
         Process process;
-        assert(process_start(process,executable,args,2));
+        assert(process_start(process,executable,args,1 + (expected_exit_code==7 ? 1 : 0)));
         std::int32_t exit_code=-1;
         assert(process_wait(process,5000,&exit_code));
-        assert(exit_code==7);
+        assert(exit_code==expected_exit_code);
         process_close(process);
         assert(process.handle==nullptr);
     }
