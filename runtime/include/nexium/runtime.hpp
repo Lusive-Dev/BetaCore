@@ -59,6 +59,8 @@ struct Socket { std::intptr_t handle{-1}; };
 bool network_initialize() noexcept;
 void network_shutdown() noexcept;
 bool tcp_connect(Socket& socket, const char* host, std::uint16_t port, std::uint64_t timeout_ms) noexcept;
+bool tcp_listen(Socket& listener, const char* host, std::uint16_t port, std::uint16_t* bound_port, int backlog) noexcept;
+bool tcp_accept(Socket& listener, Socket& client, std::uint64_t timeout_ms) noexcept;
 std::int64_t tcp_send(Socket& socket, const void* data, std::size_t size) noexcept;
 std::int64_t tcp_receive(Socket& socket, void* data, std::size_t capacity) noexcept;
 void tcp_close(Socket& socket) noexcept;
