@@ -113,16 +113,18 @@ bool process_start(Process& process,const char* executable,const char* const* ar
     if(!impl) { TerminateProcess(pi.hProcess,1); CloseHandle(pi.hThread); CloseHandle(pi.hProcess); set_error(ErrorCode::out_of_memory,"process handle allocation failed"); return false; }
     process.handle=impl; process.id=pi.dwProcessId;
 #else
+    std::vector<char*> argv; argv.reserve(count+2);
+    argv.push_back(const_cast<char*>(executable));
+    for(std::size_t i=0;i<count;++i) {
+        if(!arguments[i]) { set_error(ErrorCode::invalid_argument,"null process argument"); return false; }
+        argv.push_back(const_cast<char*>(arguments[i]));
+    }
+    argv.push_back(nullptr);
     auto* impl=new(std::nothrow) ProcessImpl{};
     if(!impl) { set_error(ErrorCode::out_of_memory,"process handle allocation failed"); return false; }
     pid_t pid=fork();
     if(pid<0) { delete impl; set_error(ErrorCode::process_failure,"fork failed"); return false; }
-    if(pid==0) {
-        std::vector<char*> argv; argv.reserve(count+2);
-        argv.push_back(const_cast<char*>(executable));
-        for(std::size_t i=0;i<count;++i) argv.push_back(const_cast<char*>(arguments[i]));
-        argv.push_back(nullptr); execvp(executable,argv.data()); _exit(127);
-    }
+    if(pid==0) { execvp(executable,argv.data()); _exit(127); }
     impl->pid=pid; process.handle=impl; process.id=static_cast<std::uint32_t>(pid);
 #endif
     clear_error(); return true;
