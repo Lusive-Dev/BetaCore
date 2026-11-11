@@ -4,15 +4,14 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#if defined(_WIN32)
-# include <malloc.h>
-#endif
+#include <cstdint>
 
 namespace nexium::runtime {
 namespace {
 std::atomic<bool> initialized{false};
 std::atomic<std::uint64_t> live_bytes{0}, peak_bytes{0}, live_allocations{0};
-bool valid_alignment(std::size_t a) noexcept { return a >= sizeof(void*) && (a & (a - 1)) == 0; }
+struct AllocationHeader { void* base; std::size_t size; };
+bool valid_alignment(std::size_t a) noexcept { return a != 0 && (a & (a - 1)) == 0; }
 }
 bool initialize() noexcept { bool expected=false; return initialized.compare_exchange_strong(expected,true) || expected; }
 void shutdown() noexcept { initialized.store(false); }
@@ -21,30 +20,32 @@ bool is_initialized() noexcept { return initialized.load(); }
 void* allocate(std::size_t size, std::size_t alignment) noexcept {
     if (!valid_alignment(alignment)) return nullptr;
     if (size == 0) size = 1;
-#if defined(_WIN32)
-    void* p = _aligned_malloc(size, alignment);
-#else
-    void* p = nullptr;
-    if (posix_memalign(&p, alignment, size) != 0) p = nullptr;
-#endif
-    if (!p) return nullptr;
+    const std::size_t effective = alignment < alignof(void*) ? alignof(void*) : alignment;
+    if (size > std::numeric_limits<std::size_t>::max() - effective - sizeof(AllocationHeader)) return nullptr;
+    const std::size_t total = size + effective - 1 + sizeof(AllocationHeader);
+    void* base = std::malloc(total);
+    if (!base) return nullptr;
+    const auto start = reinterpret_cast<std::uintptr_t>(base) + sizeof(AllocationHeader);
+    const auto aligned = (start + effective - 1) & ~(static_cast<std::uintptr_t>(effective) - 1);
+    auto* header = reinterpret_cast<AllocationHeader*>(aligned - sizeof(AllocationHeader));
+    header->base = base;
+    header->size = size;
     const auto current = live_bytes.fetch_add(size) + size;
     live_allocations.fetch_add(1);
     auto peak = peak_bytes.load();
     while (current > peak && !peak_bytes.compare_exchange_weak(peak, current)) {}
-    return p;
+    return reinterpret_cast<void*>(aligned);
 }
 void deallocate(void* p, std::size_t) noexcept {
     if (!p) return;
-#if defined(_WIN32)
-    _aligned_free(p);
-#else
-    std::free(p);
-#endif
+    auto* header = reinterpret_cast<AllocationHeader*>(reinterpret_cast<std::uintptr_t>(p) - sizeof(AllocationHeader));
+    void* base = header->base;
+    const std::size_t size = header->size;
+    live_bytes.fetch_sub(size);
     live_allocations.fetch_sub(1);
+    std::free(base);
 }
 MemoryStats memory_stats() noexcept { return {live_bytes.load(), peak_bytes.load(), live_allocations.load()}; }
-
 bool write(const char* text, std::size_t length) noexcept {
     if (!text && length) return false;
     return std::fwrite(text, 1, length, stdout) == length;
@@ -61,7 +62,6 @@ bool write_line(const char* text) noexcept {
     std::fflush(stderr);
     std::abort();
 }
-
 String::String(const char* text) noexcept { if (text) assign(text, std::strlen(text)); }
 String::String(const String& other) noexcept { assign(other.c_str(), other.size_); }
 String::String(String&& other) noexcept : data_(other.data_), size_(other.size_) { other.data_=nullptr; other.size_=0; }
@@ -90,7 +90,7 @@ bool String::assign(const char* text, std::size_t length) noexcept {
 bool String::append(const char* text, std::size_t length) noexcept {
     if (!text && length) return false;
     if (!length) return true;
-    if (size_ > std::numeric_limits<std::size_t>::max()-length-1) return false;
+    if (length > std::numeric_limits<std::size_t>::max()-size_-1) return false;
     char* next=static_cast<char*>(runtime::allocate(size_+length+1,alignof(char)));
     if (!next) return false;
     if (size_) std::memcpy(next,data_,size_);
