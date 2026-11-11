@@ -6,6 +6,8 @@
 #include <cstring>
 #include <limits>
 #include <thread>
+#include <mutex>
+#include <new>
 
 namespace nexium::runtime {
 namespace {
@@ -141,6 +143,51 @@ void sleep_ms(std::uint64_t ms) noexcept {
         ms-=part;
     }
 }
+namespace {
+struct ThreadImpl { std::thread worker; };
+}
+bool thread_start(Thread& thread,ThreadFunction function,void* data) noexcept {
+    if(thread.handle || !function) return false;
+    auto* impl=new(std::nothrow) ThreadImpl{};
+    if(!impl) return false;
+    try { impl->worker=std::thread(function,data); }
+    catch(...) { delete impl; return false; }
+    thread.handle=impl; return true;
+}
+bool thread_join(Thread& thread) noexcept {
+    if(!thread.handle) return false;
+    auto* impl=static_cast<ThreadImpl*>(thread.handle);
+    try { if(impl->worker.joinable()) impl->worker.join(); }
+    catch(...) { return false; }
+    delete impl; thread.handle=nullptr; return true;
+}
+bool thread_detach(Thread& thread) noexcept {
+    if(!thread.handle) return false;
+    auto* impl=static_cast<ThreadImpl*>(thread.handle);
+    try { if(impl->worker.joinable()) impl->worker.detach(); }
+    catch(...) { return false; }
+    delete impl; thread.handle=nullptr; return true;
+}
+bool mutex_initialize(Mutex& mutex) noexcept {
+    if(mutex.handle) return false;
+    mutex.handle=new(std::nothrow) std::mutex();
+    return mutex.handle!=nullptr;
+}
+void mutex_destroy(Mutex& mutex) noexcept {
+    if(!mutex.handle) return;
+    delete static_cast<std::mutex*>(mutex.handle); mutex.handle=nullptr;
+}
+bool mutex_lock(Mutex& mutex) noexcept {
+    if(!mutex.handle) return false;
+    try { static_cast<std::mutex*>(mutex.handle)->lock(); return true; }
+    catch(...) { return false; }
+}
+bool mutex_unlock(Mutex& mutex) noexcept {
+    if(!mutex.handle) return false;
+    try { static_cast<std::mutex*>(mutex.handle)->unlock(); return true; }
+    catch(...) { return false; }
+}
+
 bool environment_get(const char* name,char* dst,std::size_t cap,std::size_t* required) noexcept {
     if(required) *required=0;
     if(!name || !*name || (!dst && cap)) return false;
