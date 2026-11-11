@@ -1,7 +1,8 @@
 #include "nexium/compiler/lexer.hpp"
 #include <cctype>
 #include <cstdint>
-#include <limits>\n#include <utility>
+#include <limits>
+#include <utility>
 
 namespace nexium::compiler {
 namespace {
@@ -102,7 +103,7 @@ LexResult Lexer::tokenize(const std::string& src) const {
             while(i<src.size()) {
                 char ch=src[i++];
                 if(ch=='"') { ++col; closed=true; break; }
-                if(ch=='\n' || ch=='\r') { error(where,"string literal cannot cross a line"); break; }
+                if(ch=='\n' || ch=='\r') { --i; error(where,"string literal cannot cross a line"); break; }
                 ++col;
                 if(ch=='\\') {
                     if(i>=src.size()) { error(where,"unfinished escape sequence"); break; }
