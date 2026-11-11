@@ -73,6 +73,17 @@ struct Thread { void* handle{nullptr}; };
 bool thread_start(Thread& thread, ThreadFunction function, void* user_data) noexcept;
 bool thread_join(Thread& thread) noexcept;
 bool thread_detach(Thread& thread) noexcept;
+enum class TaskState : std::uint8_t { invalid, queued, running, completed, failed };
+using TaskFunction = void(*)(void*);
+struct TaskPool { void* handle{nullptr}; };
+struct Task { void* handle{nullptr}; };
+bool task_pool_initialize(TaskPool& pool, std::size_t worker_count) noexcept;
+bool task_submit(TaskPool& pool, Task& task, TaskFunction function, void* user_data) noexcept;
+TaskState task_state(const Task& task) noexcept;
+bool task_wait(const Task& task, std::uint64_t timeout_ms) noexcept;
+void task_release(Task& task) noexcept;
+void task_pool_shutdown(TaskPool& pool) noexcept;
+
 struct Mutex { void* handle{nullptr}; };
 bool mutex_initialize(Mutex& mutex) noexcept;
 void mutex_destroy(Mutex& mutex) noexcept;
