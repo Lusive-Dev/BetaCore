@@ -134,9 +134,17 @@ private:
 
 // Stable C-facing bootstrap ABI. Handles are opaque to Nexium programs.
 extern "C" {
+struct NexiumRuntimeFile { void* handle; };
 std::uint32_t nexium_rt_abi_version() noexcept;
 void* nexium_rt_alloc(std::size_t size, std::size_t alignment) noexcept;
 void nexium_rt_free(void* pointer, std::size_t alignment) noexcept;
 int nexium_rt_write(const char* text, std::size_t length) noexcept;
 [[noreturn]] void nexium_rt_panic(const char* message) noexcept;
+int nexium_rt_file_open(NexiumRuntimeFile* file, const char* path, std::uint8_t mode) noexcept;
+std::size_t nexium_rt_file_read(NexiumRuntimeFile* file, void* destination, std::size_t bytes) noexcept;
+std::size_t nexium_rt_file_write(NexiumRuntimeFile* file, const void* source, std::size_t bytes) noexcept;
+int nexium_rt_file_flush(NexiumRuntimeFile* file) noexcept;
+int nexium_rt_file_close(NexiumRuntimeFile* file) noexcept;
+std::uint64_t nexium_rt_time_ns() noexcept;
+void nexium_rt_sleep_ms(std::uint64_t milliseconds) noexcept;
 }
