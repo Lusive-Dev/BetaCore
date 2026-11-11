@@ -31,6 +31,8 @@ bool write(const char* text, std::size_t length) noexcept;
 bool write_line(const char* text) noexcept;
 [[noreturn]] void panic(const char* message) noexcept;
 bool valid_utf8(const char* text, std::size_t length) noexcept;
+bool utf8_decode_next(const char* text, std::size_t length, std::size_t* offset, std::uint32_t* codepoint) noexcept;
+bool utf8_encode(std::uint32_t codepoint, char output[4], std::size_t* written) noexcept;
 
 struct File { void* handle{nullptr}; };
 enum class FileMode : std::uint8_t { read, write, append, read_write };
@@ -102,7 +104,7 @@ private:
 template<class T>
 class Array {
     static_assert(std::is_nothrow_destructible<T>::value, "Array elements must have noexcept destructors");
-    static_assert(std::is_move_constructible<T>::value || std::is_copy_constructible<T>::value,
+    static_assert(std::is_nothrow_move_constructible<T>::value || std::is_copy_constructible<T>::value,
                   "Array elements must be movable or copyable");
 public:
     Array() noexcept=default;
