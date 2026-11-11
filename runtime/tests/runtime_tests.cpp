@@ -5,6 +5,9 @@
 #include <cstring>
 #include <utility>
 #include <cstdio>
+#include <cstdlib>
+#undef assert
+#define assert(condition) do { if(!(condition)) { std::fprintf(stderr, "CHECK FAILED: %s (%s:%d)\\n", #condition, __FILE__, __LINE__); std::abort(); } } while(0)
 
 using namespace nexium::runtime;
 namespace {
