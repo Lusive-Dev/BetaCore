@@ -1,27 +1,41 @@
-name: Nexium Runtime Windows CI
+name: Nexium Runtime CI
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+
 jobs:
-  build-and-test:
+  hosted-build-and-test:
     strategy:
       fail-fast: false
       matrix:
-        runner: [windows-2022, windows-latest]
+        include:
+          - runner: windows-2022
+            platform: windows
+          - runner: windows-latest
+            platform: windows
+          - runner: ubuntu-24.04
+            platform: unix
+          - runner: macos-14
+            platform: unix
     runs-on: ${{ matrix.runner }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-      - name: Configure x64
+      - name: Configure Windows x64
+        if: matrix.platform == 'windows'
         run: cmake -S . -B build -A x64 -DNEXIUM_RUNTIME_BUILD_TESTS=ON
+      - name: Configure Unix
+        if: matrix.platform == 'unix'
+        run: cmake -S . -B build -DNEXIUM_RUNTIME_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Release
       - name: Build
         run: cmake --build build --config Release --parallel
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
-      - name: Upload runtime artifacts
+      - name: Upload Windows artifacts
+        if: matrix.platform == 'windows'
         uses: actions/upload-artifact@v4
         with:
           name: nexium-runtime-${{ matrix.runner }}-x64
@@ -29,3 +43,30 @@ jobs:
             build/Release/nexium_runtime.lib
             build/Release/nexium_runtime_tests.exe
           if-no-files-found: error
+      - name: Upload Unix artifacts
+        if: matrix.platform == 'unix'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexium-runtime-${{ matrix.runner }}-x64
+          path: |
+            build/libnexium_runtime.a
+            build/nexium_runtime_tests
+          if-no-files-found: error
+
+  linux-sanitizers:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure with AddressSanitizer and UndefinedBehaviorSanitizer
+        env:
+          CXXFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer -O1 -g
+          LDFLAGS: -fsanitize=address,undefined
+        run: cmake -S . -B build-sanitized -DNEXIUM_RUNTIME_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=Debug
+      - name: Build
+        run: cmake --build build-sanitized --parallel
+      - name: Test under sanitizers
+        env:
+          ASAN_OPTIONS: detect_leaks=1:strict_string_checks=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: ctest --test-dir build-sanitized --output-on-failure
