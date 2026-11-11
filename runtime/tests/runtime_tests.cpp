@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstring>
 #include <utility>
+#include <cstdio>
 
 using namespace nexium::runtime;
 namespace {
@@ -97,6 +98,60 @@ int main() {
         assert(mutex_unlock(mutex));
         mutex_destroy(mutex);
         assert(!mutex_lock(mutex));
+    }
+
+    {
+        const char* dir="nexium-runtime-test-dir/nested";
+        assert(directory_create(dir));
+        assert(directory_exists(dir));
+        const char* source="nexium-runtime-source.tmp";
+        const char* copy="nexium-runtime-copy.tmp";
+        const char* moved="nexium-runtime-moved.tmp";
+        File f;
+        assert(file_open(f,source,FileMode::write));
+        const char payload[]="filesystem";
+        assert(file_write(f,payload,sizeof(payload)-1)==sizeof(payload)-1);
+        assert(file_close(f));
+        std::uint64_t bytes=0;
+        assert(file_size(source,&bytes) && bytes==sizeof(payload)-1);
+        assert(file_copy(source,copy,false));
+        assert(file_move(copy,moved,false));
+        assert(file_remove(source) && file_remove(moved));
+        std::remove("nexium-runtime-test-dir/nested");
+        std::remove("nexium-runtime-test-dir");
+    }
+
+    {
+        unsigned char random_bytes[48]{};
+        assert(secure_random(random_bytes,sizeof(random_bytes)));
+        bool nonzero=false;
+        for(unsigned char b:random_bytes) nonzero=nonzero || b!=0;
+        assert(nonzero);
+    }
+
+    {
+#ifdef _WIN32
+        const char* executable="cmd.exe";
+        const char* args[]={"/c","exit 7"};
+#else
+        const char* executable="/bin/sh";
+        const char* args[]={"-c","exit 7"};
+#endif
+        Process process;
+        assert(process_start(process,executable,args,2));
+        std::int32_t exit_code=-1;
+        assert(process_wait(process,5000,&exit_code));
+        assert(exit_code==7);
+        process_close(process);
+        assert(process.handle==nullptr);
+    }
+
+    {
+        assert(network_initialize());
+        Socket socket;
+        assert(socket.handle==-1);
+        tcp_close(socket);
+        network_shutdown();
     }
 
     const auto t1=monotonic_time_ns();
