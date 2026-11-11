@@ -8,7 +8,7 @@
 
 namespace nexium::runtime {
 inline constexpr std::uint32_t abi_major = 0;
-inline constexpr std::uint32_t abi_minor = 2;
+inline constexpr std::uint32_t abi_minor = 3;
 
 enum class ErrorCode : std::uint32_t { none=0, invalid_argument, out_of_memory, out_of_range, io_failure, invalid_state, end_of_file, timeout, not_found, permission_denied, network_failure, process_failure, unsupported, unknown };
 struct Error {
