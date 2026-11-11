@@ -283,7 +283,7 @@ int main() {
         assert(format_integer(12345,formatted,sizeof(formatted),&required));
         assert(std::strcmp(formatted,"12345")==0 && required==6);
         bool matched=false;
-        assert(regex_match("nexium[0-9]+","nexium[0-9]+",&matched) && matched);
+        assert(regex_match("nexium42","nexium[0-9]+",&matched) && matched);
         assert(regex_search("hello nexium 42","[0-9]+",&matched) && matched);
         DateTime date;
         assert(datetime_utc(0,&date) && date.year==1970 && date.month==1 && date.day==1);
