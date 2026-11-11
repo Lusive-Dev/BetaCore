@@ -53,7 +53,7 @@ public:
             }
             case ExprKind::call:
                 i.op=IROp::call; i.text=e.value;
-                for(const auto& child:e.children) i.text+=" "+std::to_string(expr(*child));
+                for(const auto& child:e.children) i.arguments.push_back(expr(*child));
                 emit(std::move(i)); return dst;
             case ExprKind::unary:
                 if(e.children.size()!=1) { diagnostics.push_back({e.location,"malformed unary expression"}); return dst; }
@@ -93,9 +93,10 @@ public:
                 }
                 case StmtKind::if_statement: {
                     if(!s.expression) break;
-                    const auto condition=expr(*s.expression), otherwise=label(), done=label();
-                    IRInstruction branch; branch.op=IROp::branch; branch.left=condition; branch.target=otherwise; branch.alternate=done; branch.location=s.location; emit(std::move(branch));
-                    body(s.body); IRInstruction jump; jump.op=IROp::jump; jump.target=done; emit(std::move(jump));
+                    const auto condition=expr(*s.expression), otherwise=label(), then_body=label(), done=label();
+                    IRInstruction branch; branch.op=IROp::branch; branch.left=condition; branch.target=otherwise; branch.alternate=then_body; branch.location=s.location; emit(std::move(branch));
+                    mark(then_body,s.location); body(s.body);
+                    IRInstruction jump; jump.op=IROp::jump; jump.target=done; emit(std::move(jump));
                     mark(otherwise,s.location); body(s.else_body); mark(done,s.location); break;
                 }
                 case StmtKind::repeat: {
@@ -103,9 +104,9 @@ public:
                     const auto count=expr(*s.expression), index=reg(), start=label(), done=label();
                     IRInstruction zero; zero.op=IROp::constant_integer; zero.destination=index; zero.integer=0; emit(std::move(zero));
                     mark(start,s.location);
-                    const auto test=reg(); IRInstruction cmp; cmp.op=IROp::less_than; cmp.destination=test; cmp.left=index; cmp.right=count; emit(std::move(cmp));
-                    IRInstruction branch; branch.op=IROp::branch; branch.left=test; branch.target=done; branch.alternate=start+1; emit(std::move(branch));
-                    body(s.body);
+                    const auto test=reg(), loop_body=label(); IRInstruction cmp; cmp.op=IROp::less_than; cmp.destination=test; cmp.left=index; cmp.right=count; emit(std::move(cmp));
+                    IRInstruction branch; branch.op=IROp::branch; branch.left=test; branch.target=done; branch.alternate=loop_body; emit(std::move(branch));
+                    mark(loop_body,s.location); body(s.body);
                     IRInstruction one; one.op=IROp::constant_integer; one.destination=reg(); one.integer=1; const auto one_reg=one.destination; emit(std::move(one));
                     IRInstruction inc; inc.op=IROp::add; inc.destination=index; inc.left=index; inc.right=one_reg; emit(std::move(inc));
                     IRInstruction jump; jump.op=IROp::jump; jump.target=start; emit(std::move(jump));
