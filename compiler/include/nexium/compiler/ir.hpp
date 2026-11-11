@@ -17,6 +17,7 @@ struct IRInstruction {
     std::uint32_t left{0};
     std::uint32_t right{0};
     std::string text;
+    std::vector<std::uint32_t> arguments;
     std::int64_t integer{0};
     double floating{0.0};
     std::uint32_t target{0};
