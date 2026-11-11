@@ -22,7 +22,7 @@ int main() {
         if(token.kind==TokenKind::kw_make || token.kind==TokenKind::kw_give ||
            token.kind==TokenKind::kw_show || token.kind==TokenKind::kw_if) ++keywords;
     }
-    assert(indents==2 && dedents==2 && strings==1 && keywords==4);
+    assert(indents==2 && dedents==2 && strings==1 && keywords==5);
     const auto bad=Lexer{}.tokenize("show \"unfinished\n\tshow @");
     assert(!bad.ok());
     std::cout<<"Nexium lexer tests passed.\n";
