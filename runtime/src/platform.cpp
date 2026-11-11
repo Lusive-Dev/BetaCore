@@ -214,6 +214,68 @@ bool tcp_connect(Socket& socket,const char* host,std::uint16_t port,std::uint64_
     if(!connected) { set_error(ErrorCode::network_failure,"TCP connection failed or timed out"); return false; }
     socket.handle=static_cast<std::intptr_t>(chosen); clear_error(); return true;
 }
+bool tcp_listen(Socket& listener,const char* host,std::uint16_t port,std::uint16_t* bound_port,int backlog) noexcept {
+    if(listener.handle!=-1 || !bound_port || backlog<1) { set_error(ErrorCode::invalid_argument,"invalid TCP listen arguments"); return false; }
+    char service[6]; std::snprintf(service,sizeof(service),"%u",static_cast<unsigned>(port));
+    addrinfo hints{}; hints.ai_family=AF_UNSPEC; hints.ai_socktype=SOCK_STREAM; hints.ai_protocol=IPPROTO_TCP; hints.ai_flags=AI_PASSIVE;
+    addrinfo* list=nullptr;
+    if(getaddrinfo((host && *host)?host:nullptr,service,&hints,&list)!=0) { set_error(ErrorCode::network_failure,"listen address resolution failed"); return false; }
+    NativeSocket chosen=invalid_socket; std::uint16_t actual=0;
+    for(addrinfo* p=list;p && chosen==invalid_socket;p=p->ai_next) {
+        NativeSocket s=::socket(p->ai_family,p->ai_socktype,p->ai_protocol); if(s==invalid_socket) continue;
+        int reuse=1;
+#ifdef _WIN32
+        setsockopt(s,SOL_SOCKET,SO_REUSEADDR,reinterpret_cast<const char*>(&reuse),sizeof(reuse));
+#else
+        setsockopt(s,SOL_SOCKET,SO_REUSEADDR,&reuse,sizeof(reuse));
+#endif
+        if(::bind(s,p->ai_addr,static_cast<int>(p->ai_addrlen))!=0 || ::listen(s,backlog)!=0) {
+#ifdef _WIN32
+            closesocket(s);
+#else
+            close(s);
+#endif
+            continue;
+        }
+        sockaddr_storage address{};
+#ifdef _WIN32
+        int address_length=sizeof(address);
+#else
+        socklen_t address_length=sizeof(address);
+#endif
+        if(getsockname(s,reinterpret_cast<sockaddr*>(&address),&address_length)!=0) {
+#ifdef _WIN32
+            closesocket(s);
+#else
+            close(s);
+#endif
+            continue;
+        }
+        if(address.ss_family==AF_INET) actual=ntohs(reinterpret_cast<sockaddr_in*>(&address)->sin_port);
+        else if(address.ss_family==AF_INET6) actual=ntohs(reinterpret_cast<sockaddr_in6*>(&address)->sin6_port);
+        chosen=s;
+    }
+    freeaddrinfo(list);
+    if(chosen==invalid_socket) { set_error(ErrorCode::network_failure,"could not bind TCP listener"); return false; }
+    listener.handle=static_cast<std::intptr_t>(chosen); *bound_port=actual; clear_error(); return true;
+}
+bool tcp_accept(Socket& listener,Socket& client,std::uint64_t timeout_ms) noexcept {
+    if(listener.handle==-1 || client.handle!=-1) { set_error(ErrorCode::invalid_argument,"invalid TCP accept arguments"); return false; }
+    NativeSocket server=static_cast<NativeSocket>(listener.handle);
+    fd_set readfds; FD_ZERO(&readfds); FD_SET(server,&readfds);
+    const std::uint64_t capped=timeout_ms>static_cast<std::uint64_t>(LONG_MAX)*1000?static_cast<std::uint64_t>(LONG_MAX)*1000:timeout_ms;
+    timeval tv{static_cast<long>(capped/1000),static_cast<long>((capped%1000)*1000)};
+#ifdef _WIN32
+    int ready=select(0,&readfds,nullptr,nullptr,&tv);
+#else
+    int ready=select(server+1,&readfds,nullptr,nullptr,&tv);
+#endif
+    if(ready<=0) { set_error(ready==0?ErrorCode::timeout:ErrorCode::network_failure,ready==0?"TCP accept timed out":"TCP listener wait failed"); return false; }
+    NativeSocket accepted=::accept(server,nullptr,nullptr);
+    if(accepted==invalid_socket) { set_error(ErrorCode::network_failure,"TCP accept failed"); return false; }
+    client.handle=static_cast<std::intptr_t>(accepted); clear_error(); return true;
+}
+
 std::int64_t tcp_send(Socket& socket,const void* data,std::size_t size) noexcept {
     if(socket.handle==-1 || (!data && size)) { set_error(ErrorCode::invalid_argument,"invalid TCP send arguments"); return -1; }
 #ifdef _WIN32
