@@ -1,4 +1,6 @@
 #include "nexium/runtime.hpp"
+#include "nexium/stdlib.hpp"
+#include <string>
 #include <atomic>
 #include <cassert>
 #include <cstdint>
@@ -249,6 +251,42 @@ int main() {
         tcp_close(client);
         tcp_close(listener);
         network_shutdown();
+    }
+
+
+    {
+        using namespace nexium::stdlib;
+        Map<std::string,int> map;
+        assert(map.insert_or_assign("answer",42));
+        assert(map.contains("answer") && *map.find("answer")==42);
+        assert(map.insert_or_assign("answer",43) && *map.find("answer")==43);
+        assert(map.erase("answer") && !map.contains("answer"));
+        Set<int> set;
+        assert(set.insert(4) && !set.insert(4) && set.contains(4));
+        Queue<int> queue;
+        assert(queue.push(7) && queue.push(9));
+        int item=0;
+        assert(queue.pop(&item) && item==7);
+        Array<int> numbers;
+        assert(numbers.push_back(5) && numbers.push_back(1) && numbers.push_back(3));
+        assert(sort(numbers) && numbers[0]==1 && numbers[2]==5);
+        assert(binary_search(numbers,3) && *binary_search(numbers,3)==3);
+        assert(binary_search(numbers,4)==nullptr);
+        assert(math::abs(-2.5)==2.5 && math::sqrt(9.0)==3.0);
+        std::int64_t integer=0;
+        assert(parse_integer("-123",&integer) && integer==-123);
+        assert(!parse_integer("12x",&integer));
+        double floating=0;
+        assert(parse_float("3.25",&floating) && floating==3.25);
+        char formatted[64]{};
+        std::size_t required=0;
+        assert(format_integer(12345,formatted,sizeof(formatted),&required));
+        assert(std::strcmp(formatted,"12345")==0 && required==6);
+        bool matched=false;
+        assert(regex_match("nexium[0-9]+","nexium[0-9]+",&matched) && matched);
+        assert(regex_search("hello nexium 42","[0-9]+",&matched) && matched);
+        DateTime date;
+        assert(datetime_utc(0,&date) && date.year==1970 && date.month==1 && date.day==1);
     }
 
     const auto t1=monotonic_time_ns();
