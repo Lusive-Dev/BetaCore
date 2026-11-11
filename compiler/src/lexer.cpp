@@ -1,7 +1,7 @@
 #include "nexium/compiler/lexer.hpp"
 #include <cctype>
 #include <cstdint>
-#include <limits>
+#include <limits>\n#include <utility>
 
 namespace nexium::compiler {
 namespace {
@@ -129,7 +129,7 @@ LexResult Lexer::tokenize(const std::string& src) const {
             case '/': one(TokenKind::slash); break; case '%': one(TokenKind::percent); break;
             case '-': ++i; ++col; if(i<src.size() && src[i]=='>') { ++i; ++col; emit(TokenKind::arrow,start,where); } else emit(TokenKind::minus,start,where); break;
             case '=': two('=',TokenKind::equal_equal,TokenKind::equal); break;
-            case '!': two('=',TokenKind::bang_equal,TokenKind::end); if(out.tokens.back().kind==TokenKind::end) error(where,"expected '=' after '!'"); break;
+            case '!': if(i+1<src.size() && src[i+1]=='=') { i+=2; col+=2; emit(TokenKind::bang_equal,start,where); } else { error(where,"expected '=' after '!'"); ++i; ++col; } break;
             case '<': two('=',TokenKind::less_equal,TokenKind::less); break;
             case '>': two('=',TokenKind::greater_equal,TokenKind::greater); break;
             default: error(where,"unexpected character"); ++i; ++col; break;
