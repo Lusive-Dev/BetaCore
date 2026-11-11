@@ -106,13 +106,19 @@ public:
         runtime::deallocate(data_,alignof(T)); data_=next; capacity_=requested; return true;
     }
     template<class... Args> bool emplace_back(Args&&... args) noexcept {
-        if(size_==capacity_) {
-            if(capacity_>std::numeric_limits<std::size_t>::max()/2) return false;
-            const std::size_t next=capacity_==0?8:capacity_*2;
-            if(!reserve(next)) return false;
-        }
-        try { new(data_+size_) T(std::forward<Args>(args)...); ++size_; return true; }
-        catch(...) { return false; }
+        try {
+            // Construct first so arguments may safely refer to existing elements,
+            // even when growing the array reallocates its storage.
+            T temporary(std::forward<Args>(args)...);
+            if(size_==capacity_) {
+                if(capacity_>std::numeric_limits<std::size_t>::max()/2) return false;
+                const std::size_t next=capacity_==0?8:capacity_*2;
+                if(!reserve(next)) return false;
+            }
+            new(data_+size_) T(std::move_if_noexcept(temporary));
+            ++size_;
+            return true;
+        } catch(...) { return false; }
     }
     bool push_back(const T& v) noexcept { return emplace_back(v); }
     bool push_back(T&& v) noexcept { return emplace_back(std::move(v)); }
