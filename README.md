@@ -2,7 +2,7 @@
 
 Nexium is an original programming-language and developer-tools project.
 
-## Runtime milestone: 0.2 bootstrap runtime
+## Runtime: expanded hosted platform layer (ABI 0.2; not frozen)
 
 The repository now contains a usable host runtime foundation for the compiler to target. This is a completed **bootstrap-runtime milestone**, not a finished Nexium 1.0 language distribution.
 
@@ -44,6 +44,11 @@ ctest --test-dir build -C Release --output-on-failure
 - File paths use the host C runtime's narrow-character path handling. Windows wide-path support and richer filesystem/path APIs remain future work.
 - Thread callbacks must not rely on exceptions crossing the runtime boundary; uncaught callback exceptions are contained by the thread trampoline.
 - Mutexes must be destroyed only after they are unlocked and no thread is using them.
-- The runtime is hosted: it uses C++17, the host C runtime, and the host threading implementation. Freestanding/kernel support, allocator replacement hooks, async/task scheduling, networking, cryptography, process APIs, structured error propagation, and platform-specific services remain future work.
+- The runtime is hosted: it uses C++17, the host C runtime, host threading, and native OS services. It is not a freestanding/kernel runtime.
+- TCP currently provides client-side stream operations only. Server/listener sockets, UDP, TLS, certificate validation, and a full networking stack are not implemented.
+- Secure random generation is provided, but a complete cryptographic API (hashing, authenticated encryption, key management, and TLS) is not yet implemented. Do not implement cryptographic algorithms in application code as a substitute.
+- Process support currently covers launch, wait, terminate, and close; pipes, redirected standard streams, environment/cwd configuration, job objects, and process groups remain future work.
+- Async/task scheduling, allocator replacement hooks, complete Unicode normalization/case-folding/grapheme handling, and a stable long-term ABI remain future work.
+- OS-specific permission, metadata, symlink, watcher, and durable atomic-write APIs remain future work.
 
 The implementation in this repository is original Nexium project code. C++17 is used as a bootstrap implementation tool; this does not mean the Nexium compiler or runtime has been implemented by copying another language's runtime.
