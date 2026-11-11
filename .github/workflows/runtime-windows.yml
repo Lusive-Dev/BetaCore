@@ -7,20 +7,24 @@ on:
   workflow_dispatch:
 jobs:
   build-and-test:
-    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [windows-2022, windows-latest]
+    runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@v4
-        name: Checkout
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Configure x64
         run: cmake -S . -B build -A x64 -DNEXIUM_RUNTIME_BUILD_TESTS=ON
       - name: Build
         run: cmake --build build --config Release --parallel
       - name: Test
         run: ctest --test-dir build -C Release --output-on-failure
-      - name: Upload build artifacts
+      - name: Upload runtime artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: nexium-runtime-windows-x64
+          name: nexium-runtime-${{ matrix.runner }}-x64
           path: |
             build/Release/nexium_runtime.lib
             build/Release/nexium_runtime_tests.exe
