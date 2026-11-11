@@ -16,6 +16,11 @@ void increment_worker(void* data) {
     value->fetch_add(1,std::memory_order_relaxed);
 }
 struct TcpTestState { Socket* listener; std::atomic<int> received{0}; };
+void task_worker(void* data) {
+    auto* value=static_cast<std::atomic<int>*>(data);
+    value->fetch_add(1,std::memory_order_relaxed);
+}
+void failing_task(void*) { throw 1; }
 void tcp_worker(void* data) {
     auto* state=static_cast<TcpTestState*>(data);
     Socket client;
@@ -163,6 +168,27 @@ int main() {
         assert(exit_code==7);
         process_close(process);
         assert(process.handle==nullptr);
+    }
+
+    {
+        TaskPool pool;
+        assert(task_pool_initialize(pool,3));
+        std::atomic<int> completed{0};
+        Task tasks[12];
+        for(auto& task:tasks) assert(task_submit(pool,task,task_worker,&completed));
+        Task failed;
+        assert(task_submit(pool,failed,failing_task,nullptr));
+        for(auto& task:tasks) {
+            assert(task_wait(task,5000));
+            assert(task_state(task)==TaskState::completed);
+            task_release(task);
+        }
+        assert(task_wait(failed,5000));
+        assert(task_state(failed)==TaskState::failed);
+        task_release(failed);
+        assert(completed.load()==12);
+        task_pool_shutdown(pool);
+        assert(pool.handle==nullptr);
     }
 
     {
