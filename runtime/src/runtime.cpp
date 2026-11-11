@@ -100,6 +100,38 @@ bool valid_utf8(const char* s,std::size_t n) noexcept {
     return true;
 }
 
+bool utf8_decode_next(const char* text,std::size_t length,std::size_t* offset,std::uint32_t* codepoint) noexcept {
+    if(!text || !offset || !codepoint || *offset>=length) return false;
+    const std::size_t i=*offset;
+    const auto c=static_cast<unsigned char>(text[i]);
+    std::uint32_t value=0; std::size_t count=0;
+    if(c<=0x7f) { value=c; count=1; }
+    else if(c>=0xc2 && c<=0xdf) { value=c&0x1f; count=2; }
+    else if(c>=0xe0 && c<=0xef) { value=c&0x0f; count=3; }
+    else if(c>=0xf0 && c<=0xf4) { value=c&0x07; count=4; }
+    else return false;
+    if(count>length-i) return false;
+    for(std::size_t j=1;j<count;++j) {
+        const auto b=static_cast<unsigned char>(text[i+j]);
+        if((b&0xc0)!=0x80) return false;
+        if(j==1 && ((c==0xe0 && b<0xa0) || (c==0xed && b>=0xa0) || (c==0xf0 && b<0x90) || (c==0xf4 && b>=0x90))) return false;
+        value=(value<<6)|(b&0x3f);
+    }
+    *codepoint=value; *offset=i+count; return true;
+}
+bool utf8_encode(std::uint32_t cp,char output[4],std::size_t* written) noexcept {
+    if(!output || !written || cp>0x10ffff || (cp>=0xd800 && cp<=0xdfff)) return false;
+    if(cp<=0x7f) { output[0]=static_cast<char>(cp); *written=1; }
+    else if(cp<=0x7ff) {
+        output[0]=static_cast<char>(0xc0|(cp>>6)); output[1]=static_cast<char>(0x80|(cp&0x3f)); *written=2;
+    } else if(cp<=0xffff) {
+        output[0]=static_cast<char>(0xe0|(cp>>12)); output[1]=static_cast<char>(0x80|((cp>>6)&0x3f)); output[2]=static_cast<char>(0x80|(cp&0x3f)); *written=3;
+    } else {
+        output[0]=static_cast<char>(0xf0|(cp>>18)); output[1]=static_cast<char>(0x80|((cp>>12)&0x3f)); output[2]=static_cast<char>(0x80|((cp>>6)&0x3f)); output[3]=static_cast<char>(0x80|(cp&0x3f)); *written=4;
+    }
+    return true;
+}
+
 bool file_open(File& file,const char* path,FileMode mode) noexcept {
     if(file.handle || !path || !*path) return false;
     const char* m=mode_string(mode);
