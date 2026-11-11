@@ -50,40 +50,66 @@ void clear_error() noexcept { tls_error={}; }
 
 bool directory_create(const char* path) noexcept {
     if(!path || !*path) { set_error(ErrorCode::invalid_argument,"directory path is empty"); return false; }
-    std::error_code ec;
-    const bool ok=std::filesystem::create_directories(std::filesystem::u8path(path),ec);
-    if(ec) { set_error(ErrorCode::io_failure,"could not create directory"); return false; }
-    if(ok || std::filesystem::is_directory(std::filesystem::u8path(path),ec)) { clear_error(); return true; }
-    set_error(ErrorCode::io_failure,"path is not a directory"); return false;
+    try {
+        std::error_code ec;
+        const auto native=std::filesystem::u8path(path);
+        const bool created=std::filesystem::create_directories(native,ec);
+        if(ec) { set_error(ErrorCode::io_failure,"could not create directory"); return false; }
+        if(created || std::filesystem::is_directory(native,ec)) {
+            if(ec) { set_error(ErrorCode::io_failure,"could not inspect directory"); return false; }
+            clear_error(); return true;
+        }
+        set_error(ErrorCode::io_failure,"path is not a directory"); return false;
+    } catch(...) { set_error(ErrorCode::out_of_memory,"directory path conversion failed"); return false; }
 }
 bool directory_exists(const char* path) noexcept {
     if(!path || !*path) { set_error(ErrorCode::invalid_argument,"directory path is empty"); return false; }
-    std::error_code ec; const bool ok=std::filesystem::is_directory(std::filesystem::u8path(path),ec);
-    if(ec) set_error(ErrorCode::io_failure,"could not inspect directory"); else clear_error();
-    return ok;
+    try {
+        std::error_code ec;
+        const bool ok=std::filesystem::is_directory(std::filesystem::u8path(path),ec);
+        if(ec) set_error(ErrorCode::io_failure,"could not inspect directory"); else clear_error();
+        return ok;
+    } catch(...) { set_error(ErrorCode::out_of_memory,"directory path conversion failed"); return false; }
 }
 bool file_copy(const char* source,const char* destination,bool overwrite) noexcept {
     if(!source || !*source || !destination || !*destination) { set_error(ErrorCode::invalid_argument,"invalid copy path"); return false; }
-    std::error_code ec;
-    auto options=overwrite?std::filesystem::copy_options::overwrite_existing:std::filesystem::copy_options::none;
-    const bool ok=std::filesystem::copy_file(std::filesystem::u8path(source),std::filesystem::u8path(destination),options,ec);
-    if(!ok || ec) { set_error(ErrorCode::io_failure,"file copy failed"); return false; }
-    clear_error(); return true;
+    try {
+        std::error_code ec;
+        auto options=overwrite?std::filesystem::copy_options::overwrite_existing:std::filesystem::copy_options::none;
+        const bool ok=std::filesystem::copy_file(std::filesystem::u8path(source),std::filesystem::u8path(destination),options,ec);
+        if(!ok || ec) { set_error(ErrorCode::io_failure,"file copy failed"); return false; }
+        clear_error(); return true;
+    } catch(...) { set_error(ErrorCode::out_of_memory,"file copy path conversion failed"); return false; }
 }
 bool file_move(const char* source,const char* destination,bool overwrite) noexcept {
     if(!source || !*source || !destination || !*destination) { set_error(ErrorCode::invalid_argument,"invalid move path"); return false; }
-    std::error_code ec;
-    auto src=std::filesystem::u8path(source), dst=std::filesystem::u8path(destination);
-    if(overwrite) std::filesystem::remove(dst,ec);
-    ec.clear(); std::filesystem::rename(src,dst,ec);
-    if(ec) { set_error(ErrorCode::io_failure,"file move failed"); return false; }
-    clear_error(); return true;
+    try {
+        auto src=std::filesystem::u8path(source), dst=std::filesystem::u8path(destination);
+#ifdef _WIN32
+        const DWORD flags=overwrite?MOVEFILE_REPLACE_EXISTING|MOVEFILE_WRITE_THROUGH:MOVEFILE_WRITE_THROUGH;
+        if(!MoveFileExW(src.c_str(),dst.c_str(),flags)) {
+            set_error(GetLastError()==ERROR_ACCESS_DENIED?ErrorCode::permission_denied:ErrorCode::io_failure,"file move failed");
+            return false;
+        }
+#else
+        std::error_code ec;
+        if(!overwrite && std::filesystem::exists(dst,ec)) {
+            set_error(ErrorCode::io_failure,"destination already exists"); return false;
+        }
+        if(ec) { set_error(ErrorCode::io_failure,"could not inspect move destination"); return false; }
+        std::filesystem::rename(src,dst,ec);
+        if(ec) { set_error(ErrorCode::io_failure,"file move failed"); return false; }
+#endif
+        clear_error(); return true;
+    } catch(...) { set_error(ErrorCode::out_of_memory,"file move path conversion failed"); return false; }
 }
 bool file_size(const char* path,std::uint64_t* size) noexcept {
     if(!path || !*path || !size) { set_error(ErrorCode::invalid_argument,"invalid file size arguments"); return false; }
-    std::error_code ec; auto n=std::filesystem::file_size(std::filesystem::u8path(path),ec);
-    if(ec) { set_error(ErrorCode::io_failure,"could not read file size"); return false; }
-    *size=static_cast<std::uint64_t>(n); clear_error(); return true;
+    try {
+        std::error_code ec; auto n=std::filesystem::file_size(std::filesystem::u8path(path),ec);
+        if(ec) { set_error(ErrorCode::io_failure,"could not read file size"); return false; }
+        *size=static_cast<std::uint64_t>(n); clear_error(); return true;
+    } catch(...) { set_error(ErrorCode::out_of_memory,"file size path conversion failed"); return false; }
 }
 
 bool process_start(Process& process,const char* executable,const char* const* arguments,std::size_t count) noexcept {
@@ -287,7 +313,13 @@ std::int64_t tcp_send(Socket& socket,const void* data,std::size_t size) noexcept
     int n=::send(static_cast<SOCKET>(socket.handle),static_cast<const char*>(data),static_cast<int>(size>INT_MAX?INT_MAX:size),0);
     if(n==SOCKET_ERROR) { set_error(ErrorCode::network_failure,"TCP send failed"); return -1; }
 #else
-    ssize_t n=::send(static_cast<int>(socket.handle),data,size,0);
+# if defined(MSG_NOSIGNAL)
+    constexpr int send_flags=MSG_NOSIGNAL;
+# else
+    constexpr int send_flags=0;
+# endif
+    const std::size_t bounded=size>static_cast<std::size_t>(SSIZE_MAX)?static_cast<std::size_t>(SSIZE_MAX):size;
+    ssize_t n=::send(static_cast<int>(socket.handle),data,bounded,send_flags);
     if(n<0) { set_error(ErrorCode::network_failure,"TCP send failed"); return -1; }
 #endif
     clear_error(); return static_cast<std::int64_t>(n);
