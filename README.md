@@ -8,7 +8,7 @@ This repository currently contains the first runtime foundation. It is not Nexiu
 
 ### Included
 - Original C++17 bootstrap runtime API.
-- Explicit aligned allocation and deallocation.
+- Explicit aligned allocation and deallocation with live-byte and allocation-count tracking.
 - Owning byte-string type.
 - Generic dynamically-sized array.
 - Runtime initialization state, console output, and panic reporting.
@@ -27,7 +27,7 @@ ctest --test-dir build -C Release --output-on-failure
 
 On Windows, configure with `cmake -S . -B build -A x64`.
 
-### Known limitations
-This is a first runtime foundation, not a finished production runtime. Memory statistics currently count allocations and track a peak, but live-byte totals are not decremented yet. UTF-8 validation, filesystem, networking, cryptography, threading, async, platform services, exception/unwind integration, and freestanding targets are not implemented yet.
+### Remaining runtime work
+This is a first runtime foundation, not a finished production runtime. UTF-8 validation, filesystem, networking, cryptography, threading, async, platform services, exception/unwind integration, freestanding targets, and a stable external ABI still need implementation and tests.
 
 The bootstrap implementation uses C++17 and host allocation/console facilities as implementation dependencies. The runtime source itself is original project code; no other language runtime source has been copied.
