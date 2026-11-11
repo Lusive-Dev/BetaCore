@@ -1,4 +1,7 @@
 name: Nexium Runtime CI
+concurrency:
+  group: nexium-runtime-${{ github.ref }}
+  cancel-in-progress: true
 on:
   push:
     branches: [ main ]
