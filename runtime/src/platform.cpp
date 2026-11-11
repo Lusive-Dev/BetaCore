@@ -88,6 +88,7 @@ bool file_size(const char* path,std::uint64_t* size) noexcept {
 
 bool process_start(Process& process,const char* executable,const char* const* arguments,std::size_t count) noexcept {
     if(process.handle || !executable || !*executable || (count && !arguments)) { set_error(ErrorCode::invalid_argument,"invalid process start arguments"); return false; }
+    try {
 #ifdef _WIN32
     auto quote=[](const char* arg)->std::wstring {
         int n=MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,arg,-1,nullptr,0);
@@ -125,6 +126,7 @@ bool process_start(Process& process,const char* executable,const char* const* ar
     impl->pid=pid; process.handle=impl; process.id=static_cast<std::uint32_t>(pid);
 #endif
     clear_error(); return true;
+    } catch(...) { set_error(ErrorCode::out_of_memory,"process argument preparation failed"); return false; }
 }
 bool process_wait(Process& process,std::uint64_t timeout_ms,std::int32_t* exit_code) noexcept {
     if(!process.handle || !exit_code) { set_error(ErrorCode::invalid_argument,"invalid process wait arguments"); return false; }
