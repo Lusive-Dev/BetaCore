@@ -146,6 +146,26 @@ int main() {
         assert(file_size(source,&bytes) && bytes==sizeof(payload)-1);
         assert(file_copy(source,copy,false));
         assert(file_move(copy,moved,false));
+
+        const char* overwrite_source="nexium-runtime-overwrite-source.tmp";
+        const char* overwrite_destination="nexium-runtime-overwrite-destination.tmp";
+        assert(file_open(f,overwrite_source,FileMode::write));
+        assert(file_write(f,"new",3)==3);
+        assert(file_close(f));
+        assert(file_open(f,overwrite_destination,FileMode::write));
+        assert(file_write(f,"old",3)==3);
+        assert(file_close(f));
+        assert(!file_move(overwrite_source,overwrite_destination,false));
+        assert(file_exists(overwrite_source) && file_exists(overwrite_destination));
+        assert(file_move(overwrite_source,overwrite_destination,true));
+        assert(!file_exists(overwrite_source));
+        assert(file_open(f,overwrite_destination,FileMode::read));
+        char replacement[4]{};
+        assert(file_read(f,replacement,3)==3);
+        assert(std::memcmp(replacement,"new",3)==0);
+        assert(file_close(f));
+        assert(file_remove(overwrite_destination));
+
         assert(file_remove(source) && file_remove(moved));
         std::remove("nexium-runtime-test-dir/nested");
         std::remove("nexium-runtime-test-dir");
