@@ -150,7 +150,7 @@ bool thread_start(Thread& thread,ThreadFunction function,void* data) noexcept {
     if(thread.handle || !function) return false;
     auto* impl=new(std::nothrow) ThreadImpl{};
     if(!impl) return false;
-    try { impl->worker=std::thread(function,data); }
+    try { impl->worker=std::thread([function,data]() noexcept { try { function(data); } catch(...) { /* exceptions cannot cross the runtime thread boundary */ } }); }
     catch(...) { delete impl; return false; }
     thread.handle=impl; return true;
 }
@@ -243,4 +243,25 @@ void* nexium_rt_alloc(std::size_t n,std::size_t a) noexcept { return nexium::run
 void nexium_rt_free(void* p,std::size_t a) noexcept { nexium::runtime::deallocate(p,a); }
 int nexium_rt_write(const char* s,std::size_t n) noexcept { return nexium::runtime::write(s,n)?1:0; }
 [[noreturn]] void nexium_rt_panic(const char* message) noexcept { nexium::runtime::panic(message); }
+int nexium_rt_file_open(NexiumRuntimeFile* file,const char* path,std::uint8_t mode) noexcept {
+    if(!file || mode>static_cast<std::uint8_t>(nexium::runtime::FileMode::read_write)) return 0;
+    nexium::runtime::File f{file->handle};
+    const bool ok=nexium::runtime::file_open(f,path,static_cast<nexium::runtime::FileMode>(mode));
+    file->handle=f.handle; return ok?1:0;
+}
+std::size_t nexium_rt_file_read(NexiumRuntimeFile* file,void* dst,std::size_t n) noexcept {
+    if(!file) return 0; nexium::runtime::File f{file->handle}; return nexium::runtime::file_read(f,dst,n);
+}
+std::size_t nexium_rt_file_write(NexiumRuntimeFile* file,const void* src,std::size_t n) noexcept {
+    if(!file) return 0; nexium::runtime::File f{file->handle}; return nexium::runtime::file_write(f,src,n);
+}
+int nexium_rt_file_flush(NexiumRuntimeFile* file) noexcept {
+    if(!file) return 0; nexium::runtime::File f{file->handle}; return nexium::runtime::file_flush(f)?1:0;
+}
+int nexium_rt_file_close(NexiumRuntimeFile* file) noexcept {
+    if(!file) return 0; nexium::runtime::File f{file->handle};
+    const bool ok=nexium::runtime::file_close(f); file->handle=f.handle; return ok?1:0;
+}
+std::uint64_t nexium_rt_time_ns() noexcept { return nexium::runtime::monotonic_time_ns(); }
+void nexium_rt_sleep_ms(std::uint64_t ms) noexcept { nexium::runtime::sleep_ms(ms); }
 }
