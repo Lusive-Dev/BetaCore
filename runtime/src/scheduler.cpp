@@ -65,16 +65,14 @@ bool task_submit(TaskPool& pool,Task& task,TaskFunction function,void* data) noe
     try {
         state=std::make_shared<TaskImpl>();
         state->function=function; state->user_data=data;
+        auto* reference=new(std::nothrow) TaskRef(state);
+        if(!reference) return false;
         {
             std::lock_guard<std::mutex> lock(impl->mutex);
-            if(impl->stopping) return false;
+            if(impl->stopping) { delete reference; return false; }
             impl->queue.push_back(state);
         }
-        task.handle=new(std::nothrow) TaskRef(state);
-        if(!task.handle) {
-            // The queued work remains valid and is allowed to complete.
-            return false;
-        }
+        task.handle=reference;
     } catch(...) { return false; }
     impl->ready.notify_one(); return true;
 }
