@@ -171,6 +171,22 @@ int main() {
     }
 
     {
+        NexiumRuntimeTaskPool pool;
+        NexiumRuntimeTask task;
+        std::atomic<int> value{0};
+        assert(nexium_rt_task_pool_initialize(&pool,1));
+        assert(nexium_rt_task_submit(&pool,&task,task_worker,&value));
+        assert(nexium_rt_task_wait(&task,5000));
+        assert(nexium_rt_task_state(&task)==static_cast<std::uint32_t>(TaskState::completed));
+        nexium_rt_task_release(&task);
+        nexium_rt_task_pool_shutdown(&pool);
+        assert(value.load()==1);
+        unsigned char bytes[16]{};
+        assert(nexium_rt_secure_random(bytes,sizeof(bytes)));
+        assert(nexium_rt_last_error_code()==static_cast<std::uint32_t>(ErrorCode::none));
+    }
+
+    {
         TaskPool pool;
         assert(task_pool_initialize(pool,3));
         std::atomic<int> completed{0};
