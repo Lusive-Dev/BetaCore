@@ -15,6 +15,16 @@ void increment_worker(void* data) {
     auto* value=static_cast<std::atomic<int>*>(data);
     value->fetch_add(1,std::memory_order_relaxed);
 }
+struct TcpTestState { Socket* listener; std::atomic<int> received{0}; };
+void tcp_worker(void* data) {
+    auto* state=static_cast<TcpTestState*>(data);
+    Socket client;
+    if(!tcp_accept(*state->listener,client,5000)) return;
+    char buffer[4]{};
+    const auto n=tcp_receive(client,buffer,sizeof(buffer));
+    if(n==4 && std::memcmp(buffer,"ping",4)==0) state->received.store(1);
+    tcp_close(client);
+}
 }
 int main() {
     assert(initialize() && is_initialized());
@@ -157,9 +167,19 @@ int main() {
 
     {
         assert(network_initialize());
-        Socket socket;
-        assert(socket.handle==-1);
-        tcp_close(socket);
+        Socket listener;
+        std::uint16_t port=0;
+        assert(tcp_listen(listener,"127.0.0.1",0,&port,8) && port!=0);
+        TcpTestState state{&listener};
+        Thread server;
+        assert(thread_start(server,tcp_worker,&state));
+        Socket client;
+        assert(tcp_connect(client,"127.0.0.1",port,5000));
+        assert(tcp_send(client,"ping",4)==4);
+        assert(thread_join(server));
+        assert(state.received.load()==1);
+        tcp_close(client);
+        tcp_close(listener);
         network_shutdown();
     }
 
