@@ -6,6 +6,9 @@
 #include <filesystem>
 #include <thread>
 #include <limits>
+#include <cstdio>
+#include <climits>
+#include <new>
 #ifdef _WIN32
 # define NOMINMAX
 # include <winsock2.h>
@@ -21,7 +24,9 @@
 # include <sys/wait.h>
 # include <signal.h>
 # include <unistd.h>
-# include <sys/random.h>
+# if defined(__linux__)
+#  include <sys/random.h>
+# endif
 #endif
 
 namespace nexium::runtime {
@@ -246,12 +251,24 @@ bool secure_random(void* destination,std::size_t size) noexcept {
     if(size>ULONG_MAX || BCryptGenRandom(nullptr,static_cast<PUCHAR>(destination),static_cast<ULONG>(size),BCRYPT_USE_SYSTEM_PREFERRED_RNG)!=0) { set_error(ErrorCode::unsupported,"system random generator failed"); return false; }
 #else
     auto* out=static_cast<unsigned char*>(destination); std::size_t done=0;
+# if defined(__linux__)
     while(done<size) {
         ssize_t n=getrandom(out+done,size-done,0);
         if(n<0 && errno==EINTR) continue;
         if(n<0) { set_error(ErrorCode::unsupported,"getrandom failed"); return false; }
         done+=static_cast<std::size_t>(n);
     }
+# else
+    int fd=open("/dev/urandom",O_RDONLY);
+    if(fd<0) { set_error(ErrorCode::unsupported,"system random source unavailable"); return false; }
+    while(done<size) {
+        ssize_t n=read(fd,out+done,size-done);
+        if(n<0 && errno==EINTR) continue;
+        if(n<=0) { close(fd); set_error(ErrorCode::unsupported,"system random read failed"); return false; }
+        done+=static_cast<std::size_t>(n);
+    }
+    close(fd);
+# endif
 #endif
     clear_error(); return true;
 }
