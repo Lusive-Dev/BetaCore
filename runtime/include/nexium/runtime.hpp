@@ -17,6 +17,7 @@ struct Error {
     explicit operator bool() const noexcept { return code != ErrorCode::none; }
 };
 Error last_error() noexcept;
+void set_last_error(ErrorCode code, const char* message) noexcept;
 void clear_error() noexcept;
 struct MemoryStats { std::uint64_t live_bytes; std::uint64_t peak_bytes; std::uint64_t live_allocations; };
 
