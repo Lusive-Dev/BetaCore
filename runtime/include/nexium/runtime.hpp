@@ -179,6 +179,12 @@ private:
 // Stable C-facing bootstrap ABI. Handles are opaque to Nexium programs.
 extern "C" {
 struct NexiumRuntimeFile { void* handle; };
+struct NexiumRuntimeProcess { void* handle; std::uint32_t id; };
+struct NexiumRuntimeSocket { std::intptr_t handle; };
+struct NexiumRuntimeTaskPool { void* handle; };
+struct NexiumRuntimeTask { void* handle; };
+using NexiumRuntimeTaskFunction = void(*)(void*);
+
 std::uint32_t nexium_rt_abi_version() noexcept;
 void* nexium_rt_alloc(std::size_t size, std::size_t alignment) noexcept;
 void nexium_rt_free(void* pointer, std::size_t alignment) noexcept;
@@ -191,4 +197,30 @@ int nexium_rt_file_flush(NexiumRuntimeFile* file) noexcept;
 int nexium_rt_file_close(NexiumRuntimeFile* file) noexcept;
 std::uint64_t nexium_rt_time_ns() noexcept;
 void nexium_rt_sleep_ms(std::uint64_t milliseconds) noexcept;
+std::uint32_t nexium_rt_last_error_code() noexcept;
+const char* nexium_rt_last_error_message() noexcept;
+int nexium_rt_directory_create(const char* path) noexcept;
+int nexium_rt_directory_exists(const char* path) noexcept;
+int nexium_rt_file_copy(const char* source, const char* destination, int overwrite) noexcept;
+int nexium_rt_file_move(const char* source, const char* destination, int overwrite) noexcept;
+int nexium_rt_file_size(const char* path, std::uint64_t* size) noexcept;
+int nexium_rt_process_start(NexiumRuntimeProcess* process, const char* executable, const char* const* arguments, std::size_t count) noexcept;
+int nexium_rt_process_wait(NexiumRuntimeProcess* process, std::uint64_t timeout_ms, std::int32_t* exit_code) noexcept;
+int nexium_rt_process_terminate(NexiumRuntimeProcess* process, std::uint32_t exit_code) noexcept;
+void nexium_rt_process_close(NexiumRuntimeProcess* process) noexcept;
+int nexium_rt_network_initialize() noexcept;
+void nexium_rt_network_shutdown() noexcept;
+int nexium_rt_tcp_connect(NexiumRuntimeSocket* socket, const char* host, std::uint16_t port, std::uint64_t timeout_ms) noexcept;
+int nexium_rt_tcp_listen(NexiumRuntimeSocket* socket, const char* host, std::uint16_t port, std::uint16_t* bound_port, int backlog) noexcept;
+int nexium_rt_tcp_accept(NexiumRuntimeSocket* listener, NexiumRuntimeSocket* client, std::uint64_t timeout_ms) noexcept;
+std::int64_t nexium_rt_tcp_send(NexiumRuntimeSocket* socket, const void* data, std::size_t size) noexcept;
+std::int64_t nexium_rt_tcp_receive(NexiumRuntimeSocket* socket, void* data, std::size_t capacity) noexcept;
+void nexium_rt_tcp_close(NexiumRuntimeSocket* socket) noexcept;
+int nexium_rt_secure_random(void* destination, std::size_t size) noexcept;
+int nexium_rt_task_pool_initialize(NexiumRuntimeTaskPool* pool, std::size_t workers) noexcept;
+int nexium_rt_task_submit(NexiumRuntimeTaskPool* pool, NexiumRuntimeTask* task, NexiumRuntimeTaskFunction function, void* user_data) noexcept;
+std::uint32_t nexium_rt_task_state(const NexiumRuntimeTask* task) noexcept;
+int nexium_rt_task_wait(const NexiumRuntimeTask* task, std::uint64_t timeout_ms) noexcept;
+void nexium_rt_task_release(NexiumRuntimeTask* task) noexcept;
+void nexium_rt_task_pool_shutdown(NexiumRuntimeTaskPool* pool) noexcept;
 }
