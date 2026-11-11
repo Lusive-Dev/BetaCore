@@ -41,7 +41,7 @@ ctest --test-dir build -C Release --output-on-failure
 
 - The ABI is currently version 0.3 and is still evolving; it is not yet frozen for long-term binary compatibility.
 - Strings store bytes. UTF-8 validity and Unicode scalar encoding/decoding are supported, but normalization, case folding, grapheme segmentation, and locale-aware text are not provided.
-- File paths use the host C runtime's narrow-character path handling. Windows wide-path support and richer filesystem/path APIs remain future work.
+- UTF-8 paths are converted to native filesystem paths for the filesystem utility APIs; Windows file open/remove use wide Win32 paths. Atomic durability guarantees and richer metadata/permission APIs are not yet provided.
 - Thread callbacks must not rely on exceptions crossing the runtime boundary; uncaught callback exceptions are contained by the thread trampoline.
 - Mutexes must be destroyed only after they are unlocked and no thread is using them.
 - The runtime is hosted: it uses C++17, the host C runtime, host threading, and native OS services. It is not a freestanding/kernel runtime.
