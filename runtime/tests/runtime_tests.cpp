@@ -96,6 +96,12 @@ int main() {
         assert(file_close(file));
         assert(file_remove(path));
         assert(!file_exists(path));
+        const char* unicode_path="nexium-runtime-\xE2\x98\x83.tmp";
+        assert(file_open(file,unicode_path,FileMode::write));
+        assert(file_write(file,"utf8",4)==4);
+        assert(file_close(file));
+        assert(file_exists(unicode_path));
+        assert(file_remove(unicode_path));
     }
 
     {
