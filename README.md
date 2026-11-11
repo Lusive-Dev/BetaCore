@@ -16,7 +16,7 @@ The repository now contains a usable host runtime foundation for the compiler to
 - Monotonic nanosecond clock and millisecond sleep.
 - Environment-variable retrieval with required-buffer-size reporting.
 - Basic threads (start/join/detach), mutexes, and a bounded worker-pool task scheduler with completion/failure states.
-- C-facing bootstrap ABI for versioning, memory, output, panic, file operations, and timing.
+- C-facing ABI for versioning, memory, output, panic, file operations, timing, structured errors, filesystem utilities, process control, TCP sockets, secure randomness, and task scheduling.
 - CMake build, automated tests, and Windows x64 CI on Windows Server 2022 and the latest Windows runner.
 
 ### Build locally
